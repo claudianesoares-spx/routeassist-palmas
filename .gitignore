@@ -1,0 +1,17 @@
+# Dados sensíveis
+*.xlsx
+*.csv
+*.json
+
+# Logs
+logs/
+logs.csv
+
+# Variáveis de ambiente
+.env
+
+# Cache Python
+__pycache__/
+
+# Streamlit secrets
+.streamlit/secrets.toml
