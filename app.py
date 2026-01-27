@@ -83,36 +83,24 @@ if "id_motorista" not in st.session_state:
 if "consultado" not in st.session_state:
     st.session_state.consultado = False
 
-# ================= CSS COMPACTO =================
+# ================= CSS =================
 st.markdown("""
 <style>
 .card {
     background-color: #ffffff;
-    padding: 10px 12px;          /* padding reduzido */
-    border-radius: 8px;          /* borda menos arredondada */
-    box-shadow: 0 2px 6px rgba(0,0,0,0.07); /* sombra mais leve */
+    padding: 10px 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.07);
     border-left: 4px solid #ff7a00;
     margin-bottom: 12px;
-    font-size: 14px;             /* fonte menor */
-    line-height: 1.3;            /* menos espaçamento entre linhas */
+    font-size: 14px;
+    line-height: 1.3;
 }
-
-.card p {
-    margin: 4px 0;               /* reduz o espaçamento entre parágrafos */
-}
-
+.card p { margin: 4px 0; }
 .card .flex-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
-}
-
-@media only screen and (max-width: 480px) {
-    .card {
-        padding: 8px 10px;
-        font-size: 13px;
-    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -150,13 +138,16 @@ with st.sidebar:
 
             if st.button("🔄 Atualizar dados agora"):
                 st.cache_data.clear()
-                st.success("Dados atualizados")
+                st.success("Dados atualizados com sucesso")
 
 st.markdown(f"### 📌 Status atual: **{config['status_site']}**")
 st.divider()
 
 if config["status_site"] == "FECHADO":
-    st.warning("🚫 Consulta indisponível no momento.")
+    st.warning(
+        "🚫 A consulta está temporariamente indisponível.\n\n"
+        "Aguarde a liberação para visualizar rotas."
+    )
     st.stop()
 
 # ================= CONSULTA =================
@@ -168,6 +159,9 @@ id_input = st.text_input(
 )
 
 if st.button("🔍 Consultar"):
+    if not id_input.strip():
+        st.warning("⚠️ Por favor, digite seu ID de motorista para continuar.")
+        st.stop()
     st.session_state.id_motorista = id_input.strip()
     st.session_state.consultado = True
 
@@ -179,11 +173,15 @@ if st.session_state.consultado and st.session_state.id_motorista:
     df_drivers = carregar_motoristas(URL_DRIVERS)
 
     if id_motorista not in set(df_drivers["ID"]):
-        st.warning("⚠️ ID não encontrado.")
+        st.warning(
+            "⚠️ ID não encontrado na base de motoristas.\n\n"
+            "👉 Verifique se digitou corretamente ou procure a liderança."
+        )
         st.stop()
 
     # ===== ROTAS DO MOTORISTA =====
     rotas_motorista = df_rotas[df_rotas["ID"] == id_motorista]
+
     if not rotas_motorista.empty:
         st.markdown("### 🚚 Suas rotas atribuídas")
         for _, row in rotas_motorista.iterrows():
@@ -205,11 +203,21 @@ if st.session_state.consultado and st.session_state.id_motorista:
                 </div>
             </div>
             """, unsafe_allow_html=True)
+    else:
+        st.info(
+            "ℹ️ Você não possui rota atribuída no momento.\n\n"
+            "👉 Caso tenha interesse, confira abaixo as rotas disponíveis."
+        )
 
     # ===== ROTAS DISPONÍVEIS =====
     rotas_disp = df_rotas[df_rotas["ID"] == ""]
 
-    if not rotas_disp.empty:
+    if rotas_disp.empty:
+        st.info(
+            "📭 No momento não há rotas disponíveis para redistribuição.\n\n"
+            "Assim que novas rotas forem liberadas, elas aparecerão automaticamente aqui."
+        )
+    else:
         st.markdown("### 📦 Rotas disponíveis")
 
         for cidade, df_cidade in rotas_disp.groupby("Cidade"):
@@ -227,7 +235,6 @@ if st.session_state.consultado and st.session_state.id_motorista:
                         f"&entry.1534916252=Tenho+Interesse"
                     )
 
-                    # --- CARD COM ÍCONE DE VEÍCULO ---
                     icone = "🚗" if str(row["Tipo Veiculo"]).upper() == "PASSEIO" else "🏍️"
 
                     st.markdown(f"""
@@ -241,12 +248,12 @@ if st.session_state.consultado and st.session_state.id_motorista:
                     """, unsafe_allow_html=True)
 
                     if rota_key in st.session_state.interesses:
-                        st.success("✔ Interesse registrado")
+                        st.success("✔ Interesse registrado. Não é necessário repetir.")
                         st.markdown(f"[👉 Abrir formulário]({form_url})")
                     else:
                         if st.button("✋ Tenho interesse nesta rota", key=f"btn_{rota_key}"):
                             st.session_state.interesses.add(rota_key)
-                            st.success("✔ Interesse registrado")
+                            st.success("✔ Interesse registrado. Não é necessário repetir.")
                             st.markdown(f"[👉 Abrir formulário]({form_url})")
 
 # ================= RODAPÉ =================
