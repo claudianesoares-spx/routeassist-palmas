@@ -13,7 +13,6 @@ st.set_page_config(
 
 # ================= CONFIG LOCAL =================
 CONFIG_FILE = "config.json"
-
 DEFAULT_CONFIG = {
     "status_site": "FECHADO",
     "senha_master": "MASTER2026",
@@ -45,10 +44,9 @@ def registrar_acao(usuario, acao):
     })
     save_config(config)
 
-# ================= URLs (MANAUS) =================
+# ================= URLs =================
 URL_ROTAS = "https://docs.google.com/spreadsheets/d/1UomeywJI8KNGNIin7KKRrkPzBWtlhlp2G-4RCCtJwXY/export?format=csv&gid=1803149397"
 URL_DRIVERS = "https://docs.google.com/spreadsheets/d/1UomeywJI8KNGNIin7KKRrkPzBWtlhlp2G-4RCCtJwXY/export?format=csv&gid=709174551"
-
 GOOGLE_FORM_URL = "https://docs.google.com/forms/d/1kAnhNwzgRvfkXjdGrA7khwroDbWFJCkrrc7nmI6mYDU/viewform"
 
 # ================= FUNÇÕES =================
@@ -62,22 +60,8 @@ def limpar_id(valor):
 def carregar_rotas(url):
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip()
-
-    # Mapeamento Manaus → padrão Route
-    df = df.rename(columns={
-        "Status": "Status",
-        "Data Rota": "Data Exp.",
-        "Gaiola": "Gaiola",
-        "Cluster": "Cluster",
-        "Vehicle": "Tipo Veiculo",
-        "ID": "ID",
-        "Nome": "Nome"
-    })
-
     df["ID"] = df["ID"].apply(limpar_id)
-    df["Status"] = df["Status"].astype(str).str.upper().str.strip()
     df["Data Exp."] = pd.to_datetime(df["Data Exp."], errors="coerce").dt.date
-
     return df
 
 @st.cache_data(ttl=300)
@@ -90,32 +74,17 @@ def carregar_motoristas(url):
 # ================= SESSION STATE =================
 if "interesses" not in st.session_state:
     st.session_state.interesses = set()
-
 if "id_motorista" not in st.session_state:
     st.session_state.id_motorista = ""
-
 if "consultado" not in st.session_state:
     st.session_state.consultado = False
 
 # ================= CSS =================
 st.markdown("""
 <style>
-.card {
-    background-color: #ffffff;
-    padding: 10px 12px;
-    border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.07);
-    border-left: 4px solid #ff7a00;
-    margin-bottom: 12px;
-    font-size: 14px;
-    line-height: 1.3;
-}
+.card { background-color: #ffffff; padding: 10px 12px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.07); border-left: 4px solid #ff7a00; margin-bottom: 12px; font-size: 14px; line-height: 1.3; }
 .card p { margin: 4px 0; }
-.card .flex-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
+.card .flex-row { display: flex; justify-content: space-between; align-items: center; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -141,17 +110,12 @@ with st.sidebar:
 
         if nivel in ["ADMIN", "MASTER"]:
             col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🔓 ABRIR"):
-                    config["status_site"] = "ABERTO"
-                    registrar_acao(nivel, "ABRIU CONSULTA")
-                    st.experimental_rerun()
-            with col2:
-                if st.button("🔒 FECHAR"):
-                    config["status_site"] = "FECHADO"
-                    registrar_acao(nivel, "FECHOU CONSULTA")
-                    st.experimental_rerun()
-
+            if col1.button("🔓 ABRIR"):
+                config["status_site"] = "ABERTO"
+                registrar_acao(nivel, "ABRIU CONSULTA")
+            if col2.button("🔒 FECHAR"):
+                config["status_site"] = "FECHADO"
+                registrar_acao(nivel, "FECHOU CONSULTA")
             if st.button("🔄 Atualizar dados agora"):
                 st.cache_data.clear()
                 st.success("Dados atualizados com sucesso")
@@ -160,10 +124,7 @@ st.markdown(f"### 📌 Status atual: **{config['status_site']}**")
 st.divider()
 
 if config["status_site"] == "FECHADO":
-    st.warning(
-        "🚫 A consulta está temporariamente indisponível.\n\n"
-        "Aguarde a liberação para visualizar rotas."
-    )
+    st.warning("🚫 A consulta está temporariamente indisponível.\n\nAguarde a liberação para visualizar rotas.")
     st.stop()
 
 # ================= CONSULTA =================
