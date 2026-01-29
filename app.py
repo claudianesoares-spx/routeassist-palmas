@@ -185,7 +185,7 @@ if st.session_state.consultado and st.session_state.id_motorista:
         )
 
     # ===== ROTAS DISPONÍVEIS (NO SHOW) =====
-    rotas_disp = df_rotas[df_rotas["Status"] == "NO SHOW"]
+    rotas_disp = df_rotas[df_rotas["Status"].str.contains("No Show", case=False, na=False)]
 
     if rotas_disp.empty:
         st.info("📭 No momento não há rotas disponíveis para redistribuição.")
