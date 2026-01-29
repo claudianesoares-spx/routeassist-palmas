@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
+from urllib.parse import quote_plus
 
 # ================= CONFIGURAÇÃO DA PÁGINA =================
 st.set_page_config(
@@ -47,7 +48,8 @@ def registrar_acao(usuario, acao):
 # ================= URLs =================
 URL_ROTAS = "https://docs.google.com/spreadsheets/d/1UomeywJI8KNGNIin7KKRrkPzBWtlhlp2G-4RCCtJwXY/export?format=csv&gid=1803149397"
 URL_DRIVERS = "https://docs.google.com/spreadsheets/d/1UomeywJI8KNGNIin7KKRrkPzBWtlhlp2G-4RCCtJwXY/export?format=csv&gid=709174551"
-GOOGLE_FORM_URL = "https://docs.google.com/forms/d/1kAnhNwzgRvfkXjdGrA7khwroDbWFJCkrrc7nmI6mYDU/viewform"
+
+GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSde2R2AHQkQ4D4U_Pg1Q6OdDQinb3fgsj8JMxXFEKDvTVynUQ/viewform"
 
 # ================= FUNÇÕES =================
 def limpar_id(valor):
@@ -72,21 +74,10 @@ def carregar_motoristas(url):
     return df
 
 # ================= SESSION STATE =================
-if "interesses" not in st.session_state:
-    st.session_state.interesses = set()
 if "id_motorista" not in st.session_state:
     st.session_state.id_motorista = ""
 if "consultado" not in st.session_state:
     st.session_state.consultado = False
-
-# ================= CSS =================
-st.markdown("""
-<style>
-.card { background-color: #ffffff; padding: 10px 12px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.07); border-left: 4px solid #ff7a00; margin-bottom: 12px; font-size: 14px; line-height: 1.3; }
-.card p { margin: 4px 0; }
-.card .flex-row { display: flex; justify-content: space-between; align-items: center; }
-</style>
-""", unsafe_allow_html=True)
 
 # ================= INTERFACE =================
 st.title("🧭 RouteAssist")
@@ -118,113 +109,79 @@ with st.sidebar:
                 registrar_acao(nivel, "FECHOU CONSULTA")
             if st.button("🔄 Atualizar dados agora"):
                 st.cache_data.clear()
-                st.success("Dados atualizados com sucesso")
+                st.success("Dados atualizados")
 
 st.markdown(f"### 📌 Status atual: **{config['status_site']}**")
 st.divider()
 
 if config["status_site"] == "FECHADO":
-    st.warning("🚫 A consulta está temporariamente indisponível.\n\nAguarde a liberação para visualizar rotas.")
+    st.warning("🚫 Consulta indisponível no momento.")
     st.stop()
 
 # ================= CONSULTA =================
-st.markdown("### 🔍 Consulta Operacional de Rotas")
-
-id_input = st.text_input(
-    "Digite seu ID de motorista",
-    value=st.session_state.id_motorista
-)
+st.markdown("### 🔍 Consulta de Rotas")
+id_input = st.text_input("Digite seu ID de motorista")
 
 if st.button("🔍 Consultar"):
     if not id_input.strip():
-        st.warning("⚠️ Por favor, digite seu ID de motorista para continuar.")
+        st.warning("Informe seu ID.")
         st.stop()
     st.session_state.id_motorista = id_input.strip()
     st.session_state.consultado = True
 
-if st.session_state.consultado and st.session_state.id_motorista:
-
+# ================= RESULTADOS =================
+if st.session_state.consultado:
     id_motorista = st.session_state.id_motorista
 
     df_rotas = carregar_rotas(URL_ROTAS)
     df_drivers = carregar_motoristas(URL_DRIVERS)
 
     if id_motorista not in set(df_drivers["ID"]):
-        st.warning(
-            "⚠️ ID não encontrado na base de motoristas.\n\n"
-            "👉 Verifique se digitou corretamente ou procure a liderança."
-        )
+        st.error("ID não encontrado.")
         st.stop()
 
     registrar_acao(id_motorista, "CONSULTOU ROTAS")
 
-    # ===== ROTAS DO MOTORISTA =====
-    rotas_motorista = df_rotas[df_rotas["ID"] == id_motorista]
-
-    if not rotas_motorista.empty:
-        st.markdown("### 🚚 Suas rotas atribuídas")
-        for _, row in rotas_motorista.iterrows():
-            data_fmt = row["Data Exp."].strftime("%d/%m/%Y") if pd.notna(row["Data Exp."]) else "-"
-            st.markdown(f"""
-            <div class="card">
-                <div class="flex-row">
-                    <span><strong>ROTA:</strong> {row['Gaiola']}</span>
-                    <span><strong>TIPO:</strong> {row['Tipo Veiculo']}</span>
-                </div>
-                <p><strong>NOME:</strong> {row['Nome']}</p>
-                <div class="flex-row">
-                    <span><strong>CLUSTER:</strong> {row['Cluster']}</span>
-                    <span><strong>DATA:</strong> {data_fmt}</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.info(
-            "ℹ️ Você não possui rota atribuída no momento.\n\n"
-            "👉 Caso tenha interesse, confira abaixo as rotas disponíveis."
-        )
-
-    # ===== ROTAS DISPONÍVEIS (NO SHOW) =====
-    rotas_disp = df_rotas[df_rotas["Status"].str.contains("No Show", case=False, na=False)]
+    # ===== ROTAS DISPONÍVEIS =====
+    rotas_disp = df_rotas[
+        df_rotas["Status"].str.contains("No Show", case=False, na=False)
+    ]
 
     if rotas_disp.empty:
-        st.info("📭 No momento não há rotas disponíveis para redistribuição.")
+        st.info("📭 Nenhuma rota disponível no momento.")
     else:
         st.markdown("### 📦 Rotas disponíveis")
 
         for cluster, df_cluster in rotas_disp.groupby("Cluster"):
-            with st.expander(f"📍 {cluster}", expanded=False):
+            with st.expander(f"📍 {cluster}"):
                 for _, row in df_cluster.iterrows():
                     data_fmt = row["Data Exp."].strftime("%d/%m/%Y") if pd.notna(row["Data Exp."]) else "-"
-                    rota_key = f"{row['Gaiola']}_{cluster}_{data_fmt}"
+
+                    form_url = (
+                        f"{GOOGLE_FORM_URL}?usp=pp_url"
+                        f"&entry.392776957={quote_plus(id_motorista)}"
+                        f"&entry.1682939517={quote_plus(str(row['Gaiola']))}"
+                        f"&entry.1100254277={quote_plus(str(row['Tipo Veiculo']))}"
+                        f"&entry.1284288730={quote_plus(str(row['Nome']))}"
+                        f"&entry.933833967={quote_plus(str(row['Cluster']))}"
+                        f"&entry.1534916252=Tenho+Interesse"
+                    )
 
                     st.markdown(f"""
-                    <div class="card">
-                        <div class="flex-row">
-                            <span><strong>ROTA:</strong> {row['Gaiola']}</span>
-                            <span><strong>TIPO:</strong> {row['Tipo Veiculo']}</span>
-                        </div>
-                        <p><strong>NOME:</strong> {row['Nome']}</p>
-                        <div class="flex-row">
-                            <span><strong>CLUSTER:</strong> {row['Cluster']}</span>
-                            <span><strong>DATA:</strong> {data_fmt}</span>
-                        </div>
+                    <div style="border:1px solid #eee; padding:12px; border-radius:8px; margin-bottom:10px;">
+                        <strong>ROTA:</strong> {row['Gaiola']}<br>
+                        <strong>TIPO:</strong> {row['Tipo Veiculo']}<br>
+                        <strong>NOME:</strong> {row['Nome']}<br>
+                        <strong>CLUSTER:</strong> {row['Cluster']}<br>
+                        <strong>DATA:</strong> {data_fmt}<br><br>
+                        <a href="{form_url}" target="_blank">💚 Tenho interesse</a>
                     </div>
                     """, unsafe_allow_html=True)
-
-                    # ✅ Botão de interesse
-                    if rota_key not in st.session_state.interesses:
-                        if st.button(f"💚 Tenho interesse ({rota_key})", key=rota_key):
-                            st.session_state.interesses.add(rota_key)
-                            registrar_acao(id_motorista, f"MANIFESTOU INTERESSE: {rota_key}")
-                            st.success("👍 Interesse registrado com sucesso!")
-                    else:
-                        st.info("💚 Você já demonstrou interesse nesta rota.")
 
 # ================= RODAPÉ =================
 st.markdown("""
 <hr>
-<div style="text-align:center; color:#888; font-size:0.85em;">
+<div style="text-align:center; font-size:0.85em; color:#888;">
 <strong>RouteAssist</strong><br>
 Concept & Development — Claudiane Vieira<br>
 Since Dec/2025
