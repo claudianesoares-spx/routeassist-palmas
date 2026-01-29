@@ -45,11 +45,11 @@ def registrar_acao(usuario, acao):
     })
     save_config(config)
 
-# ================= URLs =================
-URL_ROTAS = "https://docs.google.com/spreadsheets/d/1F8HC2D8UxRc5R_QBdd-zWu7y6Twqyk3r0NTPN0HCWUI/export?format=csv&gid=1803149397"
-URL_DRIVERS = "https://docs.google.com/spreadsheets/d/1F8HC2D8UxRc5R_QBdd-zWu7y6Twqyk3r0NTPN0HCWUI/export?format=csv&gid=36116218"
+# ================= URLs (MANAUS) =================
+URL_ROTAS = "https://docs.google.com/spreadsheets/d/1UomeywJI8KNGNIin7KKRrkPzBWtlhlp2G-4RCCtJwXY/export?format=csv&gid=1803149397"
+URL_DRIVERS = "https://docs.google.com/spreadsheets/d/1UomeywJI8KNGNIin7KKRrkPzBWtlhlp2G-4RCCtJwXY/export?format=csv&gid=709174551"
 
-GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSffKb0EPcHCRXv-XiHhgk-w2bTGbt179fJkr879jNdp-AbTxg/viewform"
+GOOGLE_FORM_URL = "https://docs.google.com/forms/d/1kAnhNwzgRvfkXjdGrA7khwroDbWFJCkrrc7nmI6mYDU/viewform"
 
 # ================= FUNÇÕES =================
 def limpar_id(valor):
@@ -62,8 +62,22 @@ def limpar_id(valor):
 def carregar_rotas(url):
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip()
+
+    # Mapeamento Manaus → padrão Route
+    df = df.rename(columns={
+        "Status": "Status",
+        "Data Rota": "Data Exp.",
+        "Gaiola": "Gaiola",
+        "Cluster": "Cluster",
+        "Vehicle": "Tipo Veiculo",
+        "ID": "ID",
+        "Nome": "Nome"
+    })
+
     df["ID"] = df["ID"].apply(limpar_id)
+    df["Status"] = df["Status"].astype(str).str.upper().str.strip()
     df["Data Exp."] = pd.to_datetime(df["Data Exp."], errors="coerce").dt.date
+
     return df
 
 @st.cache_data(ttl=300)
@@ -119,7 +133,7 @@ with st.sidebar:
         if senha == config["senha_master"]:
             nivel = "MASTER"
             st.success("Acesso MASTER liberado")
-        elif senha == "LPA2026":
+        elif senha == "MANAUS2026":
             nivel = "ADMIN"
             st.success("Acesso ADMIN liberado")
         elif senha:
@@ -131,10 +145,12 @@ with st.sidebar:
                 if st.button("🔓 ABRIR"):
                     config["status_site"] = "ABERTO"
                     registrar_acao(nivel, "ABRIU CONSULTA")
+                    st.experimental_rerun()
             with col2:
                 if st.button("🔒 FECHAR"):
                     config["status_site"] = "FECHADO"
                     registrar_acao(nivel, "FECHOU CONSULTA")
+                    st.experimental_rerun()
 
             if st.button("🔄 Atualizar dados agora"):
                 st.cache_data.clear()
@@ -179,6 +195,8 @@ if st.session_state.consultado and st.session_state.id_motorista:
         )
         st.stop()
 
+    registrar_acao(id_motorista, "CONSULTOU ROTAS")
+
     # ===== ROTAS DO MOTORISTA =====
     rotas_motorista = df_rotas[df_rotas["ID"] == id_motorista]
 
@@ -189,17 +207,13 @@ if st.session_state.consultado and st.session_state.id_motorista:
             st.markdown(f"""
             <div class="card">
                 <div class="flex-row">
-                    <span><strong>ROTA:</strong> {row['Rota']}</span>
-                    <span><strong>PLACA:</strong> {row['Placa']}</span>
+                    <span><strong>ROTA:</strong> {row['Gaiola']}</span>
+                    <span><strong>TIPO:</strong> {row['Tipo Veiculo']}</span>
                 </div>
                 <p><strong>NOME:</strong> {row['Nome']}</p>
                 <div class="flex-row">
-                    <span><strong>TIPO:</strong> {row['Tipo Veiculo']}</span>
+                    <span><strong>CLUSTER:</strong> {row['Cluster']}</span>
                     <span><strong>DATA:</strong> {data_fmt}</span>
-                </div>
-                <div class="flex-row">
-                    <span><strong>BAIRRO:</strong> {row['Bairro']}</span>
-                    <span><strong>CIDADE:</strong> {row['Cidade']}</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -209,52 +223,42 @@ if st.session_state.consultado and st.session_state.id_motorista:
             "👉 Caso tenha interesse, confira abaixo as rotas disponíveis."
         )
 
-    # ===== ROTAS DISPONÍVEIS =====
-    rotas_disp = df_rotas[df_rotas["ID"] == ""]
+    # ===== ROTAS DISPONÍVEIS (NO SHOW) =====
+    rotas_disp = df_rotas[df_rotas["Status"] == "NO SHOW"]
 
     if rotas_disp.empty:
-        st.info(
-            "📭 No momento não há rotas disponíveis para redistribuição.\n\n"
-            "Assim que novas rotas forem liberadas, elas aparecerão automaticamente aqui."
-        )
+        st.info("📭 No momento não há rotas disponíveis para redistribuição.")
     else:
         st.markdown("### 📦 Rotas disponíveis")
 
-        for cidade, df_cidade in rotas_disp.groupby("Cidade"):
-            with st.expander(f"🏙️ {cidade}", expanded=False):
-                for _, row in df_cidade.iterrows():
+        for cluster, df_cluster in rotas_disp.groupby("Cluster"):
+            with st.expander(f"📍 {cluster}", expanded=False):
+                for _, row in df_cluster.iterrows():
                     data_fmt = row["Data Exp."].strftime("%d/%m/%Y") if pd.notna(row["Data Exp."]) else "-"
-                    rota_key = f"{row['Rota']}_{row['Bairro']}_{data_fmt}"
-
-                    form_url = (
-                        f"{GOOGLE_FORM_URL}?usp=pp_url"
-                        f"&entry.392776957={id_motorista}"
-                        f"&entry.1682939517={row['Rota']}"
-                        f"&entry.625563351={row['Cidade']}"
-                        f"&entry.1284288730={row['Bairro']}"
-                        f"&entry.1534916252=Tenho+Interesse"
-                    )
-
-                    icone = "🚗" if str(row["Tipo Veiculo"]).upper() == "PASSEIO" else "🏍️"
+                    rota_key = f"{row['Gaiola']}_{cluster}_{data_fmt}"
 
                     st.markdown(f"""
                     <div class="card">
                         <div class="flex-row">
-                            <span>📍 Bairro: {row['Bairro']}</span>
-                            <span>{icone} {row['Tipo Veiculo']}</span>
+                            <span><strong>ROTA:</strong> {row['Gaiola']}</span>
+                            <span><strong>TIPO:</strong> {row['Tipo Veiculo']}</span>
                         </div>
-                        <p>📅 Data: {data_fmt}</p>
+                        <p><strong>NOME:</strong> {row['Nome']}</p>
+                        <div class="flex-row">
+                            <span><strong>CLUSTER:</strong> {row['Cluster']}</span>
+                            <span><strong>DATA:</strong> {data_fmt}</span>
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
 
-                    if rota_key in st.session_state.interesses:
-                        st.success("✔ Interesse registrado. Não é necessário repetir.")
-                        st.markdown(f"[👉 Abrir formulário]({form_url})")
-                    else:
-                        if st.button("✋ Tenho interesse nesta rota", key=f"btn_{rota_key}"):
+                    # ✅ Botão de interesse
+                    if rota_key not in st.session_state.interesses:
+                        if st.button(f"💚 Tenho interesse ({rota_key})", key=rota_key):
                             st.session_state.interesses.add(rota_key)
-                            st.success("✔ Interesse registrado. Não é necessário repetir.")
-                            st.markdown(f"[👉 Abrir formulário]({form_url})")
+                            registrar_acao(id_motorista, f"MANIFESTOU INTERESSE: {rota_key}")
+                            st.success("👍 Interesse registrado com sucesso!")
+                    else:
+                        st.info("💚 Você já demonstrou interesse nesta rota.")
 
 # ================= RODAPÉ =================
 st.markdown("""
