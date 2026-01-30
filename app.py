@@ -169,9 +169,7 @@ if st.session_state.consultado:
 
                     st.markdown(f"""
                     <div style="border:1px solid #eee; padding:12px; border-radius:8px; margin-bottom:10px;">
-                        <strong>ROTA:</strong> {row['Gaiola']}<br>
                         <strong>TIPO:</strong> {row['Tipo Veiculo']}<br>
-                        <strong>NOME:</strong> {row['Nome']}<br>
                         <strong>CLUSTER:</strong> {row['Cluster']}<br>
                         <strong>DATA:</strong> {data_fmt}<br><br>
                         <a href="{form_url}" target="_blank">💚 Tenho interesse</a>
